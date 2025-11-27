@@ -1,31 +1,31 @@
 # ------------------------------------------------------------
-CREATE
-    DATABASE IF NOT EXISTS InsightNews DEFAULT CHARACTER SET = utf8mb4;
+CREATE DATABASE IF NOT EXISTS InsightNews DEFAULT CHARACTER SET = utf8mb4;
 
 Use InsightNews;
 
-
-DROP TABLE IF EXISTS `User`;
-
 # 用户表
 DROP TABLE IF EXISTS `User`;
 
-# 用户表
 CREATE TABLE `User`
 (
     # 关键信息
-    `id`        varchar(32)  NOT NULL COMMENT '主键',
-    `phone`     varchar(64)  NOT NULL COMMENT '手机号码',
+    `id`          varchar(32)  NOT NULL COMMENT '主键',
+    `phone`       varchar(64)  NOT NULL COMMENT '手机号码',
     # 展示信息
-    `name`      varchar(64)  NOT NULL DEFAULT 'default' COMMENT '昵称',
-    `avatar`    varchar(255) NOT NULL DEFAULT 'default' COMMENT '头像',
-    `gender`    varchar(16)  NOT NULL DEFAULT 'SECRET'  COMMENT '性别',
-    `region`    varchar(64)  NOT NULL DEFAULT 'default' COMMENT '地区',
-    `profile`   varchar(64)  NOT NULL DEFAULT 'default' COMMENT '简介',
-    `email`     varchar(64)  NOT NULL DEFAULT 'default' COMMENT 'qq邮箱',
-    `updateTime`timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+    `name`        varchar(64)  NOT NULL DEFAULT 'default' COMMENT '昵称',
+    `avatar`      varchar(255) NOT NULL DEFAULT 'default' COMMENT '头像',
+    `gender`      varchar(16)  NOT NULL DEFAULT 'SECRET'  COMMENT '性别',
+    `region`      varchar(64)  NOT NULL DEFAULT 'default' COMMENT '地区',
+    `profile`     varchar(64)  NOT NULL DEFAULT 'default' COMMENT '简介',
+    `email`       varchar(64)  NOT NULL DEFAULT 'default' COMMENT 'qq邮箱',
     # 微信公众号信息
-    `open_id`   varchar(64)  NOT NULL DEFAULT 'default' COMMENT '微信OpenId',
+    `open_id`     varchar(64)  NOT NULL DEFAULT 'default' COMMENT '微信OpenId',
+    
+    # 【修正1】补充缺失字段，并统一使用下划线命名
+    `create_time` timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+    `is_deleted`  tinyint      DEFAULT '0' COMMENT '逻辑删除',
+    
     PRIMARY KEY (`id`),
     UNIQUE KEY `UK_phone` (`phone`)
 ) ENGINE = InnoDB
@@ -73,9 +73,10 @@ CREATE TABLE `Permission`
 
 
 # 角色权限映射表 RBAC
-DROP TABLE IF EXISTS `RolePermisson`;
+# 【修正2】修正表名拼写错误 Permisson -> Permission
+DROP TABLE IF EXISTS `RolePermission`;
 
-CREATE TABLE `RolePermisson`
+CREATE TABLE `RolePermission`
 (
     `Id`          int(10)     unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
     `RoleId`      varchar(255)         NOT NULL COMMENT '角色名',
@@ -141,8 +142,8 @@ DROP TABLE IF EXISTS `NewsDetection`;
 # 新闻检测表
 CREATE TABLE `NewsDetection`
 (
-    # 关键信息
-    `id`              int(10) unsigned   NOT NULL COMMENT '主键',
+    # 【修正3】已确认为 bigint，保持不变
+    `id`              bigint unsigned   NOT NULL COMMENT '主键',
     `url`             varchar(255)                COMMENT '网址',
     `user_id`         varchar(64)   NOT NULL COMMENT '上传用户',
     `title`           varchar(255)  NOT NULL COMMENT '标题',
@@ -158,4 +159,17 @@ CREATE TABLE `NewsDetection`
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='新闻检测表';
-# ------------------------------------------------------------
+
+
+-- 1. 初始化权限
+INSERT INTO Permission (Operation, Target) VALUES ('ModifyUser', 'Self');
+INSERT INTO Permission (Operation, Target) VALUES ('ViewNews', 'All');
+
+-- 2. 初始化角色 (确保 User 角色存在)
+INSERT INTO Role (RoleId, Description) VALUES ('User', '普通用户');
+INSERT INTO Role (RoleId, Description) VALUES ('Admin', '管理员');
+
+-- 3. 【关键】给 User 角色分配权限
+-- 假设上面插入的 Permission Id 分别是 1 和 2
+INSERT INTO RolePermission (RoleId, PermissionId) VALUES ('User', 1);
+INSERT INTO RolePermission (RoleId, PermissionId) VALUES ('User', 2);

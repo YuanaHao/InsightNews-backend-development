@@ -50,5 +50,9 @@ public class NewsDTO {
      */
     private Integer favoriteCount;
 
-
+    /**
+     * 证据链 (AI 分析的高亮片段或图片坐标)
+     * 使用 Object 类型，以便输出为 JSON 数组
+     */
+    private Object evidenceChain; 
 }

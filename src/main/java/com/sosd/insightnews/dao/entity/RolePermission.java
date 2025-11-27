@@ -1,30 +1,20 @@
 package com.sosd.insightnews.dao.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.util.Date;
-
-/**
- * 角色权限表
- * @TableName RolePermission
- */
 @TableName(value ="RolePermission")
 @Data
 public class RolePermission {
-    /**
-     * 主键
-     */
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "Id", type = IdType.AUTO)
     private Integer id;
 
-    /**
-     * 角色Id
-     */
+    @TableField("RoleId")
     private String roleid;
 
-    /**
-     * 权限Id
-     */
+    @TableField("PermissionId")
     private Integer permissionid;
 }

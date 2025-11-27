@@ -30,6 +30,7 @@ import com.sosd.insightnews.email.builder.CodeEmailBuilder;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
 
 import static com.sosd.insightnews.constant.RedisConstants.VERIFY_CODE;
 
@@ -127,28 +128,55 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     private List<Role> getRolesByUserId(String userId) {
         LambdaQueryWrapper<UserRole> wrapper = new LambdaQueryWrapper<>();
-        wrapper.select(UserRole::getRoleid).eq(UserRole::getUserid, userId);
-        List<String> roleIds = userRoleMapper.selectObjs(wrapper).stream().map(String::valueOf).toList();
-        if (roleIds.isEmpty()) {
-            log.info("No user roles found for user ID: {}", userId);
-            return null;
+        wrapper.eq(UserRole::getUserid, userId);
+        
+        List<UserRole> userRoles = userRoleMapper.selectList(wrapper);
+        
+        if (userRoles == null || userRoles.isEmpty()) {
+            return new ArrayList<>(); // 必须返回空列表，不能让后续逻辑处理 null
         }
+        
+        // 关键点：这里增加了 filter(Objects::nonNull) 防止取出 null 值
+        List<String> roleIds = userRoles.stream()
+                .map(UserRole::getRoleid)
+                .filter(java.util.Objects::nonNull) 
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+
+        if (roleIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
         LambdaQueryWrapper<Role> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.in(Role::getRoleid, roleIds);
         return roleMapper.selectList(queryWrapper);
     }
 
+    // 替换原有的 getPermissionsByRoleIds 方法
     private List<Permission> getPermissionsByRoleIds(List<String> roleIds) {
+        // 判空：如果没有角色，直接返回空列表，防止 IN () 报错
+        if (roleIds == null || roleIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
         LambdaQueryWrapper<RolePermission> wrapper = new LambdaQueryWrapper<>();
         wrapper.in(RolePermission::getRoleid, roleIds);
         List<RolePermission> rolePermissions = rolePermissionMapper.selectList(wrapper);
+        
         if (rolePermissions == null || rolePermissions.isEmpty()) {
-            return null;
+            return new ArrayList<>();
         }
-        List<Integer> permissionIds = rolePermissions.stream().map(RolePermission::getPermissionid).toList();
+        
+        List<Integer> permissionIds = rolePermissions.stream()
+                .map(RolePermission::getPermissionid)
+                .collect(java.util.stream.Collectors.toList());
+        
+        if (permissionIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
         return permissionMapper.selectBatchIds(permissionIds);
     }
-
 
     @Override
     public void sendEmailCode(String email) {
@@ -228,7 +256,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 使用 email 作为主键 ID，或者生成 UUID，这里沿用你之前的逻辑：用账号做ID
         newUser.setId(email); 
         newUser.setEmail(email);
-        newUser.setPhone("未绑定"); // 手机号暂时置空或设为默认
+        newUser.setPhone(email); // 手机号暂时置空或设为默认
         newUser.setName("用户" + RandomUtil.randomString(4));
         newUser.setAvatar("https://insightnews.oss-cn-hangzhou.aliyuncs.com/WechatIMG447.jpg");
         newUser.setRegion("未知");

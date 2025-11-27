@@ -1,30 +1,24 @@
 package com.sosd.insightnews.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 /**
  * 用户角色表
- * @TableName UserRole
+ * 显式指定 TableField 防止 Linux 环境下大小写映射丢失
  */
 @TableName(value ="UserRole")
 @Data
 public class UserRole {
-    /**
-     * 主键
-     */
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "Id", type = IdType.AUTO)
     private Integer id;
 
-    /**
-     * 用户Id
-     */
+    @TableField("UserId")
     private String userid;
 
-    /**
-     * 角色Id
-     */
+    @TableField("RoleId")
     private String roleid;
 }

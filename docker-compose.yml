@@ -19,6 +19,7 @@ services:
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PASSWORD: rootpassword       # 对应下方 redis 的配置
       SPRING_PROFILES_ACTIVE: dev
+      AI_DASHSCOPE_API_KEY: sk-11f3ec74578c4a51989936ad49b211cc
     volumes:
       # 挂载敏感词文件，方便后续修改不需要重打镜像
       - ./myDenyWords.txt:/app/myDenyWords.txt

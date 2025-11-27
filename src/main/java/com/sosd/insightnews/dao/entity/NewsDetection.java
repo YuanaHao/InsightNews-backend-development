@@ -1,6 +1,7 @@
 package com.sosd.insightnews.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -15,9 +16,9 @@ import java.util.Date;
 @Data
 public class NewsDetection {
     /**
-     * 主键
+     * 主键 (已修正为 BIGINT)
      */
-    @TableId(type = IdType.ASSIGN_UUID)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /**
@@ -26,8 +27,9 @@ public class NewsDetection {
     private String url;
 
     /**
-     * 上传用户
+     * 上传用户 (显式映射)
      */
+    @TableField("user_id")
     private String userId;
 
     /**
@@ -46,8 +48,9 @@ public class NewsDetection {
     private String content;
 
     /**
-     * 新闻类型
+     * 新闻类型 (显式映射)
      */
+    @TableField("news_type")
     private String newsType;
 
     /**
@@ -56,22 +59,26 @@ public class NewsDetection {
     private Integer credibility;
 
     /**
-     * 新闻发布时间
+     * 新闻发布时间 (关键修正：显式指定数据库列名，解决 null 问题)
      */
+    @TableField("publish_date")
     private Date publishDate;
 
     /**
-     * 创建时间
+     * 创建时间 (关键修正)
      */
+    @TableField("creation_time")
     private Date creationTime;
 
     /**
-     * 返回文本
+     * 返回文本 (关键修正)
      */
+    @TableField("response_text")
     private String responseText;
 
     /**
-     * 证据链文本集合
+     * 证据链文本集合 (关键修正：显式指定数据库列名)
      */
-    private String evidenceChain; // 假设这是一个 JSON 数组的字符串表示
+    @TableField("evidence_chain")
+    private String evidenceChain;
 }

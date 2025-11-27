@@ -5,12 +5,12 @@
 <mapper namespace="com.sosd.insightnews.dao.mapper.RolePermissionMapper">
 
     <resultMap id="BaseResultMap" type="com.sosd.insightnews.dao.entity.RolePermission">
-            <id property="id" column="id" />
-            <result property="roleid" column="roleid" />
-            <result property="permissionid" column="permissonid" />
+            <id property="id" column="Id" />
+            <result property="roleid" column="RoleId" />
+            <result property="permissionid" column="PermissionId" />
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,roleid,permissonid
+        Id,RoleId,PermissionId
     </sql>
 </mapper>

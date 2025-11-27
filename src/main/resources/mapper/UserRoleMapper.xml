@@ -5,12 +5,12 @@
 <mapper namespace="com.sosd.insightnews.dao.mapper.UserRoleMapper">
 
     <resultMap id="BaseResultMap" type="com.sosd.insightnews.dao.entity.UserRole">
-            <id property="id" column="id" />
-            <result property="userid" column="userid" />
-            <result property="roleid" column="roleid" />
+            <id property="id" column="Id" />
+            <result property="userid" column="UserId" />
+            <result property="roleid" column="RoleId" />
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,userid,roleid
+        Id,UserId,RoleId
     </sql>
 </mapper>
