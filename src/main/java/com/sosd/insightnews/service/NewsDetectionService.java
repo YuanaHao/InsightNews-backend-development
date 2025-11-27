@@ -61,4 +61,14 @@ public interface NewsDetectionService extends IService<NewsDetection> {
      * @return 历史检测记录列表
      */
     List<NewsDTO> getHistoryDetections(String userId);
+
+
+    /**
+     * 多模态（图文）检测
+     * @param imageUrl 图片链接
+     * @param content 文本内容
+     * @param userId 用户ID
+     * @return 检测结果
+     */
+    NewsDTO uploadMultimodalNews(String imageUrl, String content, String userId);
 }

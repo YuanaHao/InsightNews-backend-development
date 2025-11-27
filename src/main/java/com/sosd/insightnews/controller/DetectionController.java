@@ -1,6 +1,7 @@
 package com.sosd.insightnews.controller;
 
 import com.sosd.insightnews.context.UserContext;
+import com.sosd.insightnews.dto.MultimodalDetectionReq;
 import com.sosd.insightnews.dto.NewsDTO;
 import com.sosd.insightnews.dto.NewsDetectionReq;
 import com.sosd.insightnews.service.AIService;
@@ -62,6 +63,12 @@ public class DetectionController {
     public List<NewsDTO> getHistory() {
         String userId = UserContext.getCurrentUser().getId();
         return newsDetectionService.getHistoryDetections(userId);
+    }
+
+    @PostMapping("/upload/multimodal")
+    public NewsDTO uploadMultimodal(@RequestBody MultimodalDetectionReq req) {
+        String userId = UserContext.getCurrentUser().getId();
+        return newsDetectionService.uploadMultimodalNews(req.getImageUrl(), req.getContent(), userId);
     }
 
     // 上传新闻文件（视频/图片）—— 先创建一个NewsDetection实体，填入id和userId，如果是文件，content就填filePath

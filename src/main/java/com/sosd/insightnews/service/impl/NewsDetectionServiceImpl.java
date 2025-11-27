@@ -206,4 +206,52 @@ public class NewsDetectionServiceImpl extends ServiceImpl<NewsDetectionMapper, N
         // 目前先返回一个简单的提示或 URL
         return "报告生成功能开发中... (ID: " + newsId + ")";
     }
+
+    @Override
+    @Transactional
+    public NewsDTO uploadMultimodalNews(String imageUrl, String content, String userId) {
+        log.info("用户 {} 提交多模态检测，URL: {}, 文本长度: {}", userId, imageUrl, content.length());
+
+        // 1. 调用 AI 进行图文一致性分析
+        AIAnalysisResult aiResult = aiService.detectMultimodal(imageUrl, content);
+
+        // 2. 生成标题 (取文本摘要或生成新标题)
+        String title = "图文核查：" + (content.length() > 10 ? content.substring(0, 10) + "..." : content);
+
+        // 3. 构建实体
+        NewsDetection entity = new NewsDetection();
+        entity.setUserId(userId);
+        entity.setTitle(title);
+        entity.setUrl(imageUrl);   // 存图片
+        entity.setContent(content); // 存文本
+        entity.setSource("User Upload (Multimodal)");
+        entity.setNewsType("multimodal");
+        entity.setPublishDate(new Date());
+        entity.setCreationTime(new Date());
+
+        // 4. 填充结果
+        // 注意：多模态的分析结果中，responseText 应该包含一致性判断
+        String analysisText = "【图文一致性判定】\n" + (aiResult.getIsConsistent() ? "一致" : "不一致") + 
+                              "\n\n【总结】\n" + aiResult.getSummary() + 
+                              "\n\n【详细分析】\n" + aiResult.getAnalysis();
+        
+        entity.setCredibility(aiResult.getCredibility());
+        entity.setResponseText(analysisText);
+
+        // 序列化图片证据链 (bbox)
+        try {
+            if (aiResult.getImageEvidenceChain() != null) {
+                entity.setEvidenceChain(objectMapper.writeValueAsString(aiResult.getImageEvidenceChain()));
+            } else {
+                entity.setEvidenceChain("[]");
+            }
+        } catch (JsonProcessingException e) {
+            log.error("证据链序列化失败", e);
+            entity.setEvidenceChain("[]");
+        }
+
+        save(entity);
+        cacheUserHistory(userId, entity.getId());
+        return NewsConverter.NewsDetectionToNewsDTO(entity);
+    }
 }
