@@ -6,7 +6,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sosd.insightnews.constant.RedisConstants;
 import com.sosd.insightnews.converter.NewsConverter;
+import com.sosd.insightnews.dao.entity.FavoriteDislike;
 import com.sosd.insightnews.dao.entity.NewsDetection;
+import com.sosd.insightnews.dao.mapper.FavoriteDislikeMapper;
 import com.sosd.insightnews.dao.mapper.NewsDetectionMapper;
 import com.sosd.insightnews.domain.AIAnalysisResult;
 import com.sosd.insightnews.dto.NewsDTO;
@@ -34,6 +36,9 @@ public class NewsDetectionServiceImpl extends ServiceImpl<NewsDetectionMapper, N
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private FavoriteDislikeMapper favoriteDislikeMapper;
 
     // 用于对象和JSON字符串的转换
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -112,6 +117,56 @@ public class NewsDetectionServiceImpl extends ServiceImpl<NewsDetectionMapper, N
     }
 
     /**
+     * 多模态检测
+     */
+    @Override
+    @Transactional
+    public NewsDTO uploadMultimodalNews(String imageUrl, String content, String userId) {
+        log.info("用户 {} 提交多模态检测，URL: {}, 文本长度: {}", userId, imageUrl, content.length());
+
+        // 1. 调用 AI 进行图文一致性分析
+        AIAnalysisResult aiResult = aiService.detectMultimodal(imageUrl, content);
+
+        // 2. 生成标题 (取文本摘要或生成新标题)
+        String title = "图文核查：" + (content.length() > 10 ? content.substring(0, 10) + "..." : content);
+
+        // 3. 构建实体
+        NewsDetection entity = new NewsDetection();
+        entity.setUserId(userId);
+        entity.setTitle(title);
+        entity.setUrl(imageUrl);   // 存图片
+        entity.setContent(content); // 存文本
+        entity.setSource("User Upload (Multimodal)");
+        entity.setNewsType("multimodal");
+        entity.setPublishDate(new Date());
+        entity.setCreationTime(new Date());
+
+        // 4. 填充结果
+        String analysisText = "【图文一致性判定】\n" + (aiResult.getIsConsistent() ? "一致" : "不一致") + 
+                              "\n\n【总结】\n" + aiResult.getSummary() + 
+                              "\n\n【详细分析】\n" + aiResult.getAnalysis();
+        
+        entity.setCredibility(aiResult.getCredibility());
+        entity.setResponseText(analysisText);
+
+        // 序列化图片证据链 (bbox)
+        try {
+            if (aiResult.getImageEvidenceChain() != null) {
+                entity.setEvidenceChain(objectMapper.writeValueAsString(aiResult.getImageEvidenceChain()));
+            } else {
+                entity.setEvidenceChain("[]");
+            }
+        } catch (JsonProcessingException e) {
+            log.error("证据链序列化失败", e);
+            entity.setEvidenceChain("[]");
+        }
+
+        save(entity);
+        cacheUserHistory(userId, entity.getId());
+        return NewsConverter.NewsDetectionToNewsDTO(entity);
+    }
+
+    /**
      * 辅助方法：将 AI 结果填充到实体中
      */
     private void fillAnalysisData(NewsDetection entity, AIAnalysisResult result, String type) {
@@ -178,18 +233,56 @@ public class NewsDetectionServiceImpl extends ServiceImpl<NewsDetectionMapper, N
                 .collect(Collectors.toList());
     }
 
-    // --- 以下是点赞/点踩/下载报告的简单实现 ---
+    // --- 点赞/收藏/点踩 逻辑 (包含数据库持久化) ---
 
     @Override
+    @Transactional
     public void favoriteNews(Long newsId, String userId) {
+        // 1. 操作数据库
+        handleDatabaseInteraction(newsId, userId, "favorite");
+        
+        // 2. 同步 Redis Set (用于 isCollect 状态)
         String key = RedisConstants.NEWS_FAVORITE_KEY + newsId;
         toggleSet(key, userId);
+        
+        // 3. 同步 Redis Count (用于 favoriteCount)
+        String countKey = RedisConstants.NEWS_FAVORITE_COUNT_KEY + newsId;
+        updateRedisCount(countKey, key, userId);
     }
 
     @Override
+    @Transactional
     public void dislikeNews(Long newsId, String userId) {
+        // 1. 操作数据库
+        handleDatabaseInteraction(newsId, userId, "dislike");
+        
+        // 2. 同步 Redis Set
         String key = RedisConstants.NEWS_DISLIKE_KEY + newsId;
         toggleSet(key, userId);
+    }
+
+    /**
+     * 数据库通用操作：有则删（取消），无则增（添加）
+     */
+    private void handleDatabaseInteraction(Long newsId, String userId, String operationType) {
+        LambdaQueryWrapper<FavoriteDislike> query = new LambdaQueryWrapper<>();
+        query.eq(FavoriteDislike::getOperatorId, userId)
+             .eq(FavoriteDislike::getTargetId, String.valueOf(newsId))
+             .eq(FavoriteDislike::getTargetType, "news")
+             .eq(FavoriteDislike::getOperationType, operationType);
+        
+        FavoriteDislike exists = favoriteDislikeMapper.selectOne(query);
+        if (exists != null) {
+            favoriteDislikeMapper.deleteById(exists.getId());
+        } else {
+            FavoriteDislike fd = new FavoriteDislike();
+            fd.setOperatorId(userId);
+            fd.setTargetId(String.valueOf(newsId));
+            fd.setTargetType("news");
+            fd.setOperationType(operationType);
+            fd.setOperationTime(new Date());
+            favoriteDislikeMapper.insert(fd);
+        }
     }
 
     private void toggleSet(String key, String value) {
@@ -199,59 +292,17 @@ public class NewsDetectionServiceImpl extends ServiceImpl<NewsDetectionMapper, N
             stringRedisTemplate.opsForSet().add(key, value);
         }
     }
-
-    @Override
-    public String downloadAnalysisReport(Long newsId, String format) {
-        // TODO: 集成 PDF 生成工具 (如 iText 或 wkhtmltopdf)
-        // 目前先返回一个简单的提示或 URL
-        return "报告生成功能开发中... (ID: " + newsId + ")";
+    
+    private void updateRedisCount(String countKey, String setKey, String userId) {
+        if (Boolean.TRUE.equals(stringRedisTemplate.opsForSet().isMember(setKey, userId))) {
+            stringRedisTemplate.opsForValue().increment(countKey);
+        } else {
+            stringRedisTemplate.opsForValue().decrement(countKey);
+        }
     }
 
     @Override
-    @Transactional
-    public NewsDTO uploadMultimodalNews(String imageUrl, String content, String userId) {
-        log.info("用户 {} 提交多模态检测，URL: {}, 文本长度: {}", userId, imageUrl, content.length());
-
-        // 1. 调用 AI 进行图文一致性分析
-        AIAnalysisResult aiResult = aiService.detectMultimodal(imageUrl, content);
-
-        // 2. 生成标题 (取文本摘要或生成新标题)
-        String title = "图文核查：" + (content.length() > 10 ? content.substring(0, 10) + "..." : content);
-
-        // 3. 构建实体
-        NewsDetection entity = new NewsDetection();
-        entity.setUserId(userId);
-        entity.setTitle(title);
-        entity.setUrl(imageUrl);   // 存图片
-        entity.setContent(content); // 存文本
-        entity.setSource("User Upload (Multimodal)");
-        entity.setNewsType("multimodal");
-        entity.setPublishDate(new Date());
-        entity.setCreationTime(new Date());
-
-        // 4. 填充结果
-        // 注意：多模态的分析结果中，responseText 应该包含一致性判断
-        String analysisText = "【图文一致性判定】\n" + (aiResult.getIsConsistent() ? "一致" : "不一致") + 
-                              "\n\n【总结】\n" + aiResult.getSummary() + 
-                              "\n\n【详细分析】\n" + aiResult.getAnalysis();
-        
-        entity.setCredibility(aiResult.getCredibility());
-        entity.setResponseText(analysisText);
-
-        // 序列化图片证据链 (bbox)
-        try {
-            if (aiResult.getImageEvidenceChain() != null) {
-                entity.setEvidenceChain(objectMapper.writeValueAsString(aiResult.getImageEvidenceChain()));
-            } else {
-                entity.setEvidenceChain("[]");
-            }
-        } catch (JsonProcessingException e) {
-            log.error("证据链序列化失败", e);
-            entity.setEvidenceChain("[]");
-        }
-
-        save(entity);
-        cacheUserHistory(userId, entity.getId());
-        return NewsConverter.NewsDetectionToNewsDTO(entity);
+    public String downloadAnalysisReport(Long newsId, String format) {
+        return "报告生成功能开发中... (ID: " + newsId + ")";
     }
 }

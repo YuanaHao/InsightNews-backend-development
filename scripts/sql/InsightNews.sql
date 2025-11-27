@@ -21,7 +21,7 @@ CREATE TABLE `User`
     # 微信公众号信息
     `open_id`     varchar(64)  NOT NULL DEFAULT 'default' COMMENT '微信OpenId',
     
-    # 【修正1】补充缺失字段，并统一使用下划线命名
+    # 修正：补充缺失字段，并统一使用下划线命名
     `create_time` timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
     `is_deleted`  tinyint      DEFAULT '0' COMMENT '逻辑删除',
@@ -73,7 +73,7 @@ CREATE TABLE `Permission`
 
 
 # 角色权限映射表 RBAC
-# 【修正2】修正表名拼写错误 Permisson -> Permission
+# 修正：表名拼写错误 RolePermisson -> RolePermission
 DROP TABLE IF EXISTS `RolePermission`;
 
 CREATE TABLE `RolePermission`
@@ -91,7 +91,8 @@ DROP TABLE IF EXISTS `FavoriteDislike`;
 CREATE TABLE `FavoriteDislike`
 (
     # 关键信息
-    `id`              int(10) unsigned   NOT NULL COMMENT '主键',
+    # 【重点修改】在这里加上了 AUTO_INCREMENT
+    `id`              int(10) unsigned   NOT NULL AUTO_INCREMENT COMMENT '主键',
     `target_id`       varchar(32)    NOT NULL COMMENT '操作对象ID',
     `target_type`     varchar(32)    NOT NULL COMMENT '操作对象类型（话题/新闻）',
     `operation_type`  varchar(32)    NOT NULL COMMENT '操作类型(点踩收藏关注)',
@@ -142,7 +143,7 @@ DROP TABLE IF EXISTS `NewsDetection`;
 # 新闻检测表
 CREATE TABLE `NewsDetection`
 (
-    # 【修正3】已确认为 bigint，保持不变
+    # 关键信息：确认为 bigint
     `id`              bigint unsigned   NOT NULL COMMENT '主键',
     `url`             varchar(255)                COMMENT '网址',
     `user_id`         varchar(64)   NOT NULL COMMENT '上传用户',
@@ -160,16 +161,18 @@ CREATE TABLE `NewsDetection`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='新闻检测表';
 
+# ------------------------------------------------------------
+# 初始化基础数据 (确保系统启动即可用)
+# ------------------------------------------------------------
 
 -- 1. 初始化权限
-INSERT INTO Permission (Operation, Target) VALUES ('ModifyUser', 'Self');
-INSERT INTO Permission (Operation, Target) VALUES ('ViewNews', 'All');
+INSERT IGNORE INTO Permission (Operation, Target) VALUES ('ModifyUser', 'Self');
+INSERT IGNORE INTO Permission (Operation, Target) VALUES ('ViewNews', 'All');
 
--- 2. 初始化角色 (确保 User 角色存在)
-INSERT INTO Role (RoleId, Description) VALUES ('User', '普通用户');
-INSERT INTO Role (RoleId, Description) VALUES ('Admin', '管理员');
+-- 2. 初始化角色
+INSERT IGNORE INTO Role (RoleId, Description) VALUES ('User', '普通用户');
+INSERT IGNORE INTO Role (RoleId, Description) VALUES ('Admin', '管理员');
 
--- 3. 【关键】给 User 角色分配权限
--- 假设上面插入的 Permission Id 分别是 1 和 2
-INSERT INTO RolePermission (RoleId, PermissionId) VALUES ('User', 1);
-INSERT INTO RolePermission (RoleId, PermissionId) VALUES ('User', 2);
+-- 3. 给 User 角色分配权限 (假设 Permission Id 为 1 和 2)
+INSERT IGNORE INTO RolePermission (RoleId, PermissionId) VALUES ('User', 1);
+INSERT IGNORE INTO RolePermission (RoleId, PermissionId) VALUES ('User', 2);
