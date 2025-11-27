@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # 后端应用
+  insightnews-app:
+    build: .
+    container_name: insightnews-backend
+    ports:
+      - "8087:8087"
+    depends_on:
+      - mysql
+      - redis
+    environment:
+      # 覆盖配置文件中的数据库连接，指向容器内的 mysql 服务
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/InsightNews?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: rootpassword  # 对应下方 mysql 的配置
+      # 覆盖 Redis 连接，指向容器内的 redis 服务
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PASSWORD: rootpassword       # 对应下方 redis 的配置
+      SPRING_PROFILES_ACTIVE: dev
+    volumes:
+      # 挂载敏感词文件，方便后续修改不需要重打镜像
+      - ./myDenyWords.txt:/app/myDenyWords.txt
+    networks:
+      - insight-net
+
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: insightnews-mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: InsightNews
+    volumes:
+      # 自动执行你的 SQL 脚本进行建表
+      - ./scripts/sql/InsightNews.sql:/docker-entrypoint-initdb.d/init.sql
+      # 数据持久化
+      - mysql_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - insight-net
+
+  # Redis 缓存
+  redis:
+    image: redis:latest
+    container_name: insightnews-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass rootpassword
+    networks:
+      - insight-net
+
+volumes:
+  mysql_data:
+
+networks:
+  insight-net:
